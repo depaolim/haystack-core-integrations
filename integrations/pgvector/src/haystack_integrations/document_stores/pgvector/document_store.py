@@ -246,13 +246,11 @@ class PgvectorDocumentStore:
         cursor = cursor or self.cursor()
 
         try:
-            result = cursor.execute(sql_query, params)
+            return cursor.execute(sql_query, params)
         except Error as e:
             self.connection.rollback()
             detailed_error_msg = f"{error_msg}.\nYou can find the SQL query and the parameters in the debug logs."
             raise DocumentStoreError(detailed_error_msg) from e
-
-        return result
 
     def _create_table_if_not_exists(self):
         """
@@ -365,9 +363,7 @@ class PgvectorDocumentStore:
 
         sql_count = SQL("SELECT COUNT(*) FROM {table_name}").format(table_name=Identifier(self.table_name))
 
-        count = self._execute_sql(sql_count, error_msg="Could not count documents in PgvectorDocumentStore").fetchone()[
-            0
-        ]
+        count, = self._execute_sql(sql_count, error_msg="Could not count documents in PgvectorDocumentStore").fetchone()
         return count
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
