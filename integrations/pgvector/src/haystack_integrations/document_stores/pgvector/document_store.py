@@ -151,15 +151,11 @@ class PgvectorDocumentStore:
         self.keyword_index_name = keyword_index_name
         self.language = language
         self._connection = None
-        self._cursor = None
         self._dict_cursor = None
 
     @property
     def cursor(self):
-        if self._cursor is None:
-            self._create_connection()
-
-        return self._cursor
+        return self.connection.cursor()
 
     @property
     def dict_cursor(self):
@@ -183,7 +179,6 @@ class PgvectorDocumentStore:
         register_vector(connection)  # Note: this must be called before creating the cursors.
 
         self._connection = connection
-        self._cursor = self._connection.cursor()
         self._dict_cursor = self._connection.cursor(row_factory=dict_row)
 
         # Init schema
@@ -446,8 +441,10 @@ class PgvectorDocumentStore:
         sql_query_str = sql_insert.as_string(self.connection) if not isinstance(sql_insert, str) else sql_insert
         logger.debug("SQL query: %s\nParameters: %s", sql_query_str, db_documents)
 
+        cursor = self.cursor
+
         try:
-            self.cursor.executemany(sql_insert, db_documents, returning=True)
+            cursor.executemany(sql_insert, db_documents, returning=True)
         except IntegrityError as ie:
             self.connection.rollback()
             raise DuplicateDocumentError from ie
@@ -463,9 +460,9 @@ class PgvectorDocumentStore:
         # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany
         written_docs = 0
         while True:
-            if self.cursor.fetchone():
+            if cursor.fetchone():
                 written_docs += 1
-            if not self.cursor.nextset():
+            if not cursor.nextset():
                 break
 
         return written_docs
