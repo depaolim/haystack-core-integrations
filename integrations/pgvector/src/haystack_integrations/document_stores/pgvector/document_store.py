@@ -155,7 +155,6 @@ class PgvectorDocumentStore:
     def cursor(self):
         return self.connection.cursor()
 
-    @property
     def dict_cursor(self):
         return self.connection.cursor(row_factory=dict_row)
 
@@ -237,8 +236,6 @@ class PgvectorDocumentStore:
         sql_query_str = sql_query.as_string(self.connection) if not isinstance(sql_query, str) else sql_query
         logger.debug("SQL query: %s\nParameters: %s", sql_query_str, params)
 
-        cursor = cursor or self.cursor()
-
         try:
             return cursor.execute(sql_query, params)
         except Error as e:
@@ -255,7 +252,9 @@ class PgvectorDocumentStore:
             table_name=Identifier(self.table_name), embedding_dimension=SQLLiteral(self.embedding_dimension)
         )
 
-        self._execute_sql(create_sql, error_msg="Could not create table in PgvectorDocumentStore")
+        with self.cursor() as cursor:
+            self._execute_sql(
+                create_sql, error_msg="Could not create table in PgvectorDocumentStore", cursor=cursor)
 
     def delete_table(self):
         """
@@ -265,19 +264,23 @@ class PgvectorDocumentStore:
 
         delete_sql = SQL("DROP TABLE IF EXISTS {table_name}").format(table_name=Identifier(self.table_name))
 
-        self._execute_sql(delete_sql, error_msg=f"Could not delete table {self.table_name} in PgvectorDocumentStore")
+        with self.cursor() as cursor:
+            self._execute_sql(
+                delete_sql, error_msg=f"Could not delete table {self.table_name} in PgvectorDocumentStore", cursor=cursor)
 
     def _create_keyword_index_if_not_exists(self):
         """
         Internal method to create the keyword index if not exists.
         """
-        index_exists = bool(
-            self._execute_sql(
-                "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
-                (self.table_name, self.keyword_index_name),
-                "Could not check if keyword index exists",
-            ).fetchone()
-        )
+        with self.cursor() as cursor:
+            index_exists = bool(
+                self._execute_sql(
+                    "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
+                    (self.table_name, self.keyword_index_name),
+                    "Could not check if keyword index exists",
+                    cursor
+                ).fetchone()
+            )
 
         sql_create_index = SQL(
             "CREATE INDEX {index_name} ON {table_name} USING GIN (to_tsvector({language}, content))"
@@ -288,7 +291,8 @@ class PgvectorDocumentStore:
         )
 
         if not index_exists:
-            self._execute_sql(sql_create_index, error_msg="Could not create keyword index on table")
+            with self.cursor() as cursor:
+                self._execute_sql(sql_create_index, error_msg="Could not create keyword index on table", cursor=cursor)
 
     def _handle_hnsw(self):
         """
@@ -300,15 +304,18 @@ class PgvectorDocumentStore:
             sql_set_hnsw_ef_search = SQL("SET hnsw.ef_search = {hnsw_ef_search}").format(
                 hnsw_ef_search=SQLLiteral(self.hnsw_ef_search)
             )
-            self._execute_sql(sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search")
+            with self.cursor() as cursor:
+                self._execute_sql(sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search", cursor=cursor)
 
-        index_exists = bool(
-            self._execute_sql(
-                "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
-                (self.table_name, self.hnsw_index_name),
-                "Could not check if HNSW index exists",
-            ).fetchone()
-        )
+        with self.cursor() as cursor:
+            index_exists = bool(
+                self._execute_sql(
+                    "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
+                    (self.table_name, self.hnsw_index_name),
+                    error_msg="Could not check if HNSW index exists",
+                    cursor=cursor
+                ).fetchone()
+            )
 
         if index_exists and not self.hnsw_recreate_index_if_exists:
             logger.warning(
@@ -319,7 +326,8 @@ class PgvectorDocumentStore:
             return
 
         sql_drop_index = SQL("DROP INDEX IF EXISTS {index_name}").format(index_name=Identifier(self.hnsw_index_name))
-        self._execute_sql(sql_drop_index, error_msg="Could not drop HNSW index")
+        with self.cursor() as cursor:
+            self._execute_sql(sql_drop_index, error_msg="Could not drop HNSW index", cursor=cursor)
 
         self._create_hnsw_index()
 
@@ -348,7 +356,8 @@ class PgvectorDocumentStore:
             )
             sql_create_index += sql_add_creation_kwargs
 
-        self._execute_sql(sql_create_index, error_msg="Could not create HNSW index")
+        with self.cursor() as cursor:
+            self._execute_sql(sql_create_index, error_msg="Could not create HNSW index", cursor=cursor)
 
     def count_documents(self) -> int:
         """
@@ -357,7 +366,9 @@ class PgvectorDocumentStore:
 
         sql_count = SQL("SELECT COUNT(*) FROM {table_name}").format(table_name=Identifier(self.table_name))
 
-        count, = self._execute_sql(sql_count, error_msg="Could not count documents in PgvectorDocumentStore").fetchone()
+        with self.cursor() as cursor:
+            count, = self._execute_sql(
+                sql_count, error_msg="Could not count documents in PgvectorDocumentStore", cursor=cursor).fetchone()
         return count
 
     def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
@@ -386,14 +397,15 @@ class PgvectorDocumentStore:
             sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
             sql_filter += sql_where_clause
 
-        result = self._execute_sql(
-            sql_filter,
-            params,
-            error_msg="Could not filter documents from PgvectorDocumentStore.",
-            cursor=self.dict_cursor,
-        )
+        with self.dict_cursor() as cursor:
+            result = self._execute_sql(
+                sql_filter,
+                params,
+                error_msg="Could not filter documents from PgvectorDocumentStore.",
+                cursor=cursor,
+            )
+            records = result.fetchall()
 
-        records = result.fetchall()
         docs = self._from_pg_to_haystack_documents(records)
         return docs
 
@@ -532,7 +544,9 @@ class PgvectorDocumentStore:
             table_name=Identifier(self.table_name), document_ids_str=SQL(document_ids_str)
         )
 
-        self._execute_sql(delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore")
+        with self.cursor() as cursor:
+            self._execute_sql(
+                delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore", cursor=cursor)
 
     def _keyword_retrieval(
         self,
@@ -571,14 +585,15 @@ class PgvectorDocumentStore:
 
         sql_query = sql_select + sql_where_clause + sql_sort
 
-        result = self._execute_sql(
-            sql_query,
-            (query, *where_params),
-            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
-            cursor=self.dict_cursor,
-        )
+        with self.dict_cursor() as cursor:
+            result = self._execute_sql(
+                sql_query,
+                (query, *where_params),
+                error_msg="Could not retrieve documents from PgvectorDocumentStore.",
+                cursor=cursor,
+            )
+            records = result.fetchall()
 
-        records = result.fetchall()
         docs = self._from_pg_to_haystack_documents(records)
         return docs
 
@@ -649,13 +664,14 @@ class PgvectorDocumentStore:
 
         sql_query = sql_select + sql_where_clause + sql_sort
 
-        result = self._execute_sql(
-            sql_query,
-            params,
-            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
-            cursor=self.dict_cursor,
-        )
+        with self.dict_cursor() as cursor:
+            result = self._execute_sql(
+                sql_query,
+                params,
+                error_msg="Could not retrieve documents from PgvectorDocumentStore.",
+                cursor=cursor,
+            )
+            records = result.fetchall()
 
-        records = result.fetchall()
         docs = self._from_pg_to_haystack_documents(records)
         return docs
