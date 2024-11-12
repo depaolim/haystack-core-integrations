@@ -161,7 +161,8 @@ class PgvectorDocumentStore:
     @property
     def connection(self):
         if self._connection is None:
-            self._create_connection()
+            self._connection = self._create_connection()
+            self._init_schema()
 
         return self._connection
 
@@ -171,8 +172,7 @@ class PgvectorDocumentStore:
         connection.autocommit = True
         connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
         register_vector(connection)  # Note: this must be called before creating the cursors.
-        self._connection = connection
-        self._init_schema()
+        return connection
 
     def _init_schema(self):
         if self.recreate_table:
