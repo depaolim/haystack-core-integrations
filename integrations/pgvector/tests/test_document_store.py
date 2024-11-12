@@ -18,6 +18,10 @@ from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
 @pytest.mark.integration
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
+    def test_write_document(self, document_store: PgvectorDocumentStore):
+        docs = [Document(id="1")]
+        assert document_store.write_documents(docs) == 1
+
     def test_write_documents(self, document_store: PgvectorDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1

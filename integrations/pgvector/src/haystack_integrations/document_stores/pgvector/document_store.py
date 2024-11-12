@@ -443,7 +443,7 @@ class PgvectorDocumentStore:
 
         sql_insert += SQL(" RETURNING id")
 
-        sql_query_str = sql_insert.as_string(self.cursor) if not isinstance(sql_insert, str) else sql_insert
+        sql_query_str = sql_insert.as_string(self.connection) if not isinstance(sql_insert, str) else sql_insert
         logger.debug("SQL query: %s\nParameters: %s", sql_query_str, db_documents)
 
         try:
