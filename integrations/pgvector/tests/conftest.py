@@ -35,13 +35,9 @@ def patches_for_unit_tests():
     ) as mock_register, patch(
         "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore.delete_table"
     ) as mock_delete, patch(
-        "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore._create_table_if_not_exists"
-    ) as mock_create, patch(
-        "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore._create_keyword_index_if_not_exists"
-    ) as mock_create_kw_index, patch(
         "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore._handle_hnsw"
     ) as mock_hnsw:
-        yield mock_connect, mock_register, mock_delete, mock_create, mock_create_kw_index, mock_hnsw
+        yield mock_connect, mock_register, mock_delete, mock_hnsw
 
 
 @pytest.fixture

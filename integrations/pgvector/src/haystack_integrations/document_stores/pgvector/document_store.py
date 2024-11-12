@@ -195,8 +195,30 @@ class PgvectorDocumentStore:
     def _init_schema(self):
         if self.recreate_table:
             self.delete_table()
-        self._create_table_if_not_exists()
-        self._create_keyword_index_if_not_exists()
+
+        create_table = SQL(CREATE_TABLE_STATEMENT).format(
+            table_name=Identifier(self.table_name), embedding_dimension=SQLLiteral(self.embedding_dimension)
+        )
+        create_index = SQL(
+            "CREATE INDEX {index_name} ON {table_name} USING GIN (to_tsvector({language}, content))"
+        ).format(
+            index_name=Identifier(self.keyword_index_name),
+            table_name=Identifier(self.table_name),
+            language=SQLLiteral(self.language),
+        )
+
+        with self.cursor() as cursor:
+            cursor.execute(create_table, "Could not create table in PgvectorDocumentStore")
+            index_exists = bool(
+                cursor.execute(
+                    "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
+                    "Could not check if keyword index exists",
+                    (self.table_name, self.keyword_index_name),
+                ).fetchone()
+            )
+            if not index_exists:
+                cursor.execute(create_index, "Could not create keyword index on table")
+
 
         if self.search_strategy == "hnsw":
             self._handle_hnsw()
@@ -237,18 +259,6 @@ class PgvectorDocumentStore:
         deserialize_secrets_inplace(data["init_parameters"], ["connection_string"])
         return default_from_dict(cls, data)
 
-    def _create_table_if_not_exists(self):
-        """
-        Creates the table to store Haystack documents if it doesn't exist yet.
-        """
-
-        create_sql = SQL(CREATE_TABLE_STATEMENT).format(
-            table_name=Identifier(self.table_name), embedding_dimension=SQLLiteral(self.embedding_dimension)
-        )
-
-        with self.cursor() as cursor:
-            cursor.execute(create_sql, "Could not create table in PgvectorDocumentStore")
-
     def delete_table(self):
         """
         Deletes the table used to store Haystack documents.
@@ -259,31 +269,6 @@ class PgvectorDocumentStore:
 
         with self.cursor() as cursor:
             cursor.execute(delete_sql, f"Could not delete table {self.table_name} in PgvectorDocumentStore")
-
-    def _create_keyword_index_if_not_exists(self):
-        """
-        Internal method to create the keyword index if not exists.
-        """
-        with self.cursor() as cursor:
-            index_exists = bool(
-                cursor.execute(
-                    "SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexname = %s",
-                    "Could not check if keyword index exists",
-                    (self.table_name, self.keyword_index_name),
-                ).fetchone()
-            )
-
-        sql_create_index = SQL(
-            "CREATE INDEX {index_name} ON {table_name} USING GIN (to_tsvector({language}, content))"
-        ).format(
-            index_name=Identifier(self.keyword_index_name),
-            table_name=Identifier(self.table_name),
-            language=SQLLiteral(self.language),
-        )
-
-        if not index_exists:
-            with self.cursor() as cursor:
-                cursor.execute(sql_create_index, "Could not create keyword index on table")
 
     def _handle_hnsw(self):
         """
