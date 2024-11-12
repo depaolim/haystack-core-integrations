@@ -232,7 +232,7 @@ class PgvectorDocumentStore:
         """
 
         params = params or ()
-        sql_query_str = sql_query.as_string(self.connection) if not isinstance(sql_query, str) else sql_query
+        sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
         logger.debug("SQL query: %s\nParameters: %s", sql_query_str, params)
 
         try:
