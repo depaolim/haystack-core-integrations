@@ -4,9 +4,8 @@ PYTHON_PIP := $(PYTHON_VENV) -m pip
 HATCH := ./venv/bin/hatch
 PGNAME := haystack-integrations-pgvector
 
-# create cursors on fly
-# setup in ctor
 # reconnect for each statement
+# setup in ctor
 
 all: venv setup test cov teardown
 

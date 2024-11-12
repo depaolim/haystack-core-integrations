@@ -172,8 +172,9 @@ class PgvectorDocumentStore:
         connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
         register_vector(connection)  # Note: this must be called before creating the cursors.
         self._connection = connection
+        self._init_schema()
 
-        # Init schema
+    def _init_schema(self):
         if self.recreate_table:
             self.delete_table()
         self._create_table_if_not_exists()
@@ -181,8 +182,6 @@ class PgvectorDocumentStore:
 
         if self.search_strategy == "hnsw":
             self._handle_hnsw()
-
-        return self._connection
 
     def to_dict(self) -> Dict[str, Any]:
         """
