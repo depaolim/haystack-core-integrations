@@ -151,17 +151,13 @@ class PgvectorDocumentStore:
         self.keyword_index_name = keyword_index_name
         self.language = language
         self._connection = None
-        self._dict_cursor = None
 
     def cursor(self):
         return self.connection.cursor()
 
     @property
     def dict_cursor(self):
-        if self._dict_cursor is None:
-            self._create_connection()
-
-        return self._dict_cursor
+        return self.connection.cursor(row_factory=dict_row)
 
     @property
     def connection(self):
@@ -176,9 +172,7 @@ class PgvectorDocumentStore:
         connection.autocommit = True
         connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
         register_vector(connection)  # Note: this must be called before creating the cursors.
-
         self._connection = connection
-        self._dict_cursor = self._connection.cursor(row_factory=dict_row)
 
         # Init schema
         if self.recreate_table:
