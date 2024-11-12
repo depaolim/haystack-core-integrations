@@ -153,7 +153,6 @@ class PgvectorDocumentStore:
         self._connection = None
         self._dict_cursor = None
 
-    @property
     def cursor(self):
         return self.connection.cursor()
 
@@ -241,10 +240,10 @@ class PgvectorDocumentStore:
         """
 
         params = params or ()
-        cursor = cursor or self.cursor
-
-        sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
+        sql_query_str = sql_query.as_string(self.connection) if not isinstance(sql_query, str) else sql_query
         logger.debug("SQL query: %s\nParameters: %s", sql_query_str, params)
+
+        cursor = cursor or self.cursor()
 
         try:
             result = cursor.execute(sql_query, params)
@@ -441,31 +440,30 @@ class PgvectorDocumentStore:
         sql_query_str = sql_insert.as_string(self.connection) if not isinstance(sql_insert, str) else sql_insert
         logger.debug("SQL query: %s\nParameters: %s", sql_query_str, db_documents)
 
-        cursor = self.cursor
+        with self.connection.cursor() as cursor:
+            try:
+                cursor.executemany(sql_insert, db_documents, returning=True)
+            except IntegrityError as ie:
+                self.connection.rollback()
+                raise DuplicateDocumentError from ie
+            except Error as e:
+                self.connection.rollback()
+                error_msg = (
+                    "Could not write documents to PgvectorDocumentStore. \n"
+                    "You can find the SQL query and the parameters in the debug logs."
+                )
+                raise DocumentStoreError(error_msg) from e
 
-        try:
-            cursor.executemany(sql_insert, db_documents, returning=True)
-        except IntegrityError as ie:
-            self.connection.rollback()
-            raise DuplicateDocumentError from ie
-        except Error as e:
-            self.connection.rollback()
-            error_msg = (
-                "Could not write documents to PgvectorDocumentStore. \n"
-                "You can find the SQL query and the parameters in the debug logs."
-            )
-            raise DocumentStoreError(error_msg) from e
+            # get the number of the inserted documents, inspired by psycopg3 docs
+            # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany
+            written_docs = 0
+            while True:
+                if cursor.fetchone():
+                    written_docs += 1
+                if not cursor.nextset():
+                    break
 
-        # get the number of the inserted documents, inspired by psycopg3 docs
-        # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany
-        written_docs = 0
-        while True:
-            if cursor.fetchone():
-                written_docs += 1
-            if not cursor.nextset():
-                break
-
-        return written_docs
+            return written_docs
 
     @staticmethod
     def _from_haystack_to_pg_documents(documents: List[Document]) -> List[Dict[str, Any]]:
