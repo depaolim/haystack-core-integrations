@@ -6,6 +6,7 @@ PGNAME := haystack-integrations-pgvector
 
 # reconnect for each public method call
 #	restituire una funzione che wrappi la funzione originale in un un context/connection/commit
+# autocommit = False
 # create PR with test case??
 # 	* localize delta and apply again
 # (initialize schema in __init__, if preferred)

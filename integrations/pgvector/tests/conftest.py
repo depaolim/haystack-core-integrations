@@ -33,11 +33,9 @@ def patches_for_unit_tests():
     with patch("haystack_integrations.document_stores.pgvector.document_store.connect") as mock_connect, patch(
         "haystack_integrations.document_stores.pgvector.document_store.register_vector"
     ) as mock_register, patch(
-        "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore.delete_table"
-    ) as mock_delete, patch(
         "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore._handle_hnsw"
     ) as mock_hnsw:
-        yield mock_connect, mock_register, mock_delete, mock_hnsw
+        yield mock_connect, mock_register, mock_hnsw
 
 
 @pytest.fixture

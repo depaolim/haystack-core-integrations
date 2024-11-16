@@ -290,7 +290,7 @@ class PgvectorDocumentStore:
         deserialize_secrets_inplace(data["init_parameters"], ["connection_string"])
         return default_from_dict(cls, data)
 
-    def delete_table(self):
+    def _connected_delete_table(self):
         """
         Deletes the table used to store Haystack documents.
         The name of the schema (`schema_name`) and the name of the table (`table_name`)
