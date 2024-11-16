@@ -181,9 +181,10 @@ class PgvectorDocumentStore:
     def connection(self):
         if self._connection is None:
             self._connection = self._create_connection()
-            if not self._schema_is_initialized:
-                self._init_schema()
-                self._schema_is_initialized = True
+
+        if not self._schema_is_initialized:
+            self._schema_is_initialized = True
+            self._init_schema()
 
         return self._connection
 
@@ -381,6 +382,20 @@ class PgvectorDocumentStore:
         return self._from_pg_to_haystack_documents(records)
 
     def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+        old_connection = self._connection
+        try:
+            with self._create_connection() as conn:
+                self._connection = conn
+                if not self._schema_is_initialized:
+                    self._schema_is_initialized = True
+                    self._init_schema()
+                result = self._write_documents(documents, policy)
+                conn.commit()
+        finally:
+            self._connection = old_connection
+        return result
+
+    def _write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes documents to the document store.
 

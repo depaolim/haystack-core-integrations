@@ -4,9 +4,9 @@ PYTHON_PIP := $(PYTHON_VENV) -m pip
 HATCH := ./venv/bin/hatch
 PGNAME := haystack-integrations-pgvector
 
-# test case with disconnection
-# reconnect for each statement
-# setup in ctor
+# reconnect for each public method call
+# initialize schema once
+# initialize schema in __init__, if preferred
 
 all: venv setup test cov teardown
 

@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import unittest
 from unittest.mock import patch
 
 import numpy as np
@@ -46,14 +45,10 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
 
-    @unittest.skip("TODO")
     def test_write_document_twice(self, document_store: PgvectorDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
-
         kill_all_pg_client_connections()
-
-        # try to insert another document...
         docs = [Document(id="999")]
         assert document_store.write_documents(docs) == 1
 
