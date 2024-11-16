@@ -169,6 +169,7 @@ class PgvectorDocumentStore:
         self.keyword_index_name = keyword_index_name
         self.language = language
         self._connection = None
+        self._schema_is_initialized = False
 
     def cursor(self):
         return Cursor(self.connection)
@@ -180,7 +181,9 @@ class PgvectorDocumentStore:
     def connection(self):
         if self._connection is None:
             self._connection = self._create_connection()
-            self._init_schema()
+            if not self._schema_is_initialized:
+                self._init_schema()
+                self._schema_is_initialized = True
 
         return self._connection
 
