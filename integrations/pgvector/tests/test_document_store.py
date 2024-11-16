@@ -16,6 +16,30 @@ from pandas import DataFrame
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
 
+def kill_all_pg_client_connections():
+    # TODO: these iports should be global
+    import os
+    import psycopg
+
+    pg_conn_str = os.environ["PG_CONN_STR"]
+
+    with psycopg.connect(pg_conn_str) as conn:
+        # retrive all client connections (apart from myself
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT pid, usename, datname, client_addr, state"
+                " FROM pg_stat_activity"
+                " WHERE client_addr IS NOT NULL"
+                " AND pid != pg_backend_pid()"
+            )
+            clients = cur.fetchall()
+
+        # kill all client connections
+        with conn.cursor() as cur:
+            for client_pid, *_ in clients:
+                cur.execute(f"SELECT pg_terminate_backend({client_pid});")
+
+
 @pytest.mark.integration
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
     def test_write_document(self, document_store: PgvectorDocumentStore):
@@ -27,36 +51,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
 
-        # remove this part
-        with document_store.connection.cursor() as cur:
-            cur.execute("SELECT pg_backend_pid()")
-            current_pid, = cur.fetchone()
-        print("current_pid", current_pid)
-
-        # retrive all client connections
-        with document_store.connection.cursor() as cur:
-            cur.execute(
-                "SELECT pid, usename, datname, client_addr, state"
-                " FROM pg_stat_activity"
-                " WHERE client_addr IS NOT NULL"
-            )
-            rows = cur.fetchall()
-
-        client_pids = [pid for pid, *_ in rows]
-        import psycopg
-        db_config = {
-            "dbname": "postgres",  # Replace with your database name
-            "user": "postgres",  # Default PostgreSQL user
-            "password": "postgres",  # Default password (update for production)
-            "host": "localhost",  # Host for the local PostgreSQL server
-            "port": 5432  # Default PostgreSQL port
-        }
-
-        # kill all client connections
-        with psycopg.connect(**db_config) as conn:
-            with conn.cursor() as cur:
-                for client_pid in client_pids:
-                    cur.execute(f"SELECT pg_terminate_backend({client_pid});")
+        kill_all_pg_client_connections()
 
         # try to insert another document...
         docs = [Document(id="999")]
