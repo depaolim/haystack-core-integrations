@@ -6,7 +6,8 @@ PGNAME := haystack-integrations-pgvector
 
 # reconnect for each public method call
 # initialize schema once
-# initialize schema in __init__, if preferred
+# (initialize schema in __init__, if preferred)
+# ...localize delta and apply again
 
 all: venv setup test cov teardown
 
