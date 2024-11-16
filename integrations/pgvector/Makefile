@@ -5,9 +5,10 @@ HATCH := ./venv/bin/hatch
 PGNAME := haystack-integrations-pgvector
 
 # reconnect for each public method call
-# initialize schema once
+#	restituire una funzione che wrappi la funzione originale in un un context/connection/commit
+# create PR with test case??
+# 	* localize delta and apply again
 # (initialize schema in __init__, if preferred)
-# ...localize delta and apply again
 
 all: venv setup test cov teardown
 

@@ -174,6 +174,27 @@ class PgvectorDocumentStore:
         self._connection = None
         self._schema_is_initialized = False
 
+    def __getattr__(self, item):
+        # search a hidden "connected" method
+        private_item = "_connected_" + item
+        private_method = getattr(self, private_item)
+
+        def _connected_method(*args, **kwargs):
+            old_connection = self._connection
+            try:
+                with self._create_connection() as conn:
+                    self._connection = conn
+                    if not self._schema_is_initialized:
+                        self._schema_is_initialized = True
+                        self._init_schema()
+                    result = private_method(*args, **kwargs)
+                    conn.commit()
+            finally:
+                self._connection = old_connection
+            return result
+
+        return _connected_method
+
     def cursor(self):
         return Cursor(self.connection)
 
@@ -399,21 +420,7 @@ class PgvectorDocumentStore:
 
         return self._from_pg_to_haystack_documents(records)
 
-    def write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
-        old_connection = self._connection
-        try:
-            with self._create_connection() as conn:
-                self._connection = conn
-                if not self._schema_is_initialized:
-                    self._schema_is_initialized = True
-                    self._init_schema()
-                result = self._write_documents(documents, policy)
-                conn.commit()
-        finally:
-            self._connection = old_connection
-        return result
-
-    def _write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+    def _connected_write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes documents to the document store.
 
