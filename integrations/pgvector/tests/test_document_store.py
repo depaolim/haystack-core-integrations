@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-
+import unittest
 from unittest.mock import patch
 
 import numpy as np
@@ -20,6 +20,46 @@ from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
     def test_write_document(self, document_store: PgvectorDocumentStore):
         docs = [Document(id="1")]
+        assert document_store.write_documents(docs) == 1
+
+    @unittest.skip("TODO")
+    def test_write_document_twice(self, document_store: PgvectorDocumentStore):
+        docs = [Document(id="1")]
+        assert document_store.write_documents(docs) == 1
+
+        # remove this part
+        with document_store.connection.cursor() as cur:
+            cur.execute("SELECT pg_backend_pid()")
+            current_pid, = cur.fetchone()
+        print("current_pid", current_pid)
+
+        # retrive all client connections
+        with document_store.connection.cursor() as cur:
+            cur.execute(
+                "SELECT pid, usename, datname, client_addr, state"
+                " FROM pg_stat_activity"
+                " WHERE client_addr IS NOT NULL"
+            )
+            rows = cur.fetchall()
+
+        client_pids = [pid for pid, *_ in rows]
+        import psycopg
+        db_config = {
+            "dbname": "postgres",  # Replace with your database name
+            "user": "postgres",  # Default PostgreSQL user
+            "password": "postgres",  # Default password (update for production)
+            "host": "localhost",  # Host for the local PostgreSQL server
+            "port": 5432  # Default PostgreSQL port
+        }
+
+        # kill all client connections
+        with psycopg.connect(**db_config) as conn:
+            with conn.cursor() as cur:
+                for client_pid in client_pids:
+                    cur.execute(f"SELECT pg_terminate_backend({client_pid});")
+
+        # try to insert another document...
+        docs = [Document(id="999")]
         assert document_store.write_documents(docs) == 1
 
     def test_write_documents(self, document_store: PgvectorDocumentStore):
