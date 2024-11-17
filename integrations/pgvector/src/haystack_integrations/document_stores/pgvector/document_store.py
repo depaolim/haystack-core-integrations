@@ -10,7 +10,7 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from psycopg import Error, IntegrityError, connect
-from psycopg.abc import Query, Params
+from psycopg.abc import Params, Query
 from psycopg.cursor import Cursor as PgCursor
 from psycopg.rows import dict_row
 from psycopg.sql import SQL, Identifier
@@ -268,7 +268,6 @@ class PgvectorDocumentStore:
             if not index_exists:
                 cursor.execute(create_index, "Could not create keyword index on table")
 
-
         if self.search_strategy == "hnsw":
             self._handle_hnsw()
 
@@ -402,7 +401,7 @@ class PgvectorDocumentStore:
         )
 
         with self.cursor() as cursor:
-            count, = cursor.execute(sql_count, "Could not count documents in PgvectorDocumentStore").fetchone()
+            (count,) = cursor.execute(sql_count, "Could not count documents in PgvectorDocumentStore").fetchone()
         return count
 
     def _connected_filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
@@ -435,11 +434,14 @@ class PgvectorDocumentStore:
 
         with self.dict_cursor() as cursor:
             records = cursor.execute(
-                sql_filter, "Could not filter documents from PgvectorDocumentStore.", params).fetchall()
+                sql_filter, "Could not filter documents from PgvectorDocumentStore.", params
+            ).fetchall()
 
         return self._from_pg_to_haystack_documents(records)
 
-    def _connected_write_documents(self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+    def _connected_write_documents(
+        self, documents: List[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+    ) -> int:
         """
         Writes documents to the document store.
 
@@ -696,6 +698,7 @@ class PgvectorDocumentStore:
 
         with self.dict_cursor() as cursor:
             records = cursor.execute(
-                sql_query, "Could not retrieve documents from PgvectorDocumentStore.", params).fetchall()
+                sql_query, "Could not retrieve documents from PgvectorDocumentStore.", params
+            ).fetchall()
 
         return self._from_pg_to_haystack_documents(records)

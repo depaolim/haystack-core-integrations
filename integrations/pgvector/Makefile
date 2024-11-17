@@ -4,16 +4,15 @@ PYTHON_PIP := $(PYTHON_VENV) -m pip
 HATCH := ./venv/bin/hatch
 PGNAME := haystack-integrations-pgvector
 
-# shared pointer counter
-# autocommit = False
 # no good:
 #	PgvectorKeywordRetriever.run -> docs = self.document_store._connected__embedding_retrieval
 #	PgvectorEmbeddingRetriever.run -> docs = self.document_store._connected__embedding_retrieval
+# autocommit = False
 # create PR with test case??
 # 	* localize delta and apply again
 # (initialize schema in __init__, if preferred)
 
-all: venv setup test cov teardown
+all: venv setup test cov lint teardown
 
 venv:
 	$(PYTHON_BASE) -m venv venv
@@ -34,6 +33,9 @@ test:
 
 cov:
 	$(HATCH) run cov
+
+lint:
+	$(HATCH) run lint:all
 
 clean: teardown
 	rm -rf venv

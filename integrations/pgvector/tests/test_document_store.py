@@ -18,6 +18,7 @@ from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 def kill_all_pg_client_connections():
     # TODO: these iports should be global
     import os
+
     import psycopg
 
     pg_conn_str = os.environ["PG_CONN_STR"]
