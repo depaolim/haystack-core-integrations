@@ -157,7 +157,8 @@ class PgvectorEmbeddingRetriever:
         top_k = top_k or self.top_k
         vector_function = vector_function or self.vector_function
 
-        docs = self.document_store._embedding_retrieval(
+        # TODO: this call does not work if not already connected
+        docs = self.document_store._connected__embedding_retrieval(
             query_embedding=query_embedding,
             filters=filters,
             top_k=top_k,

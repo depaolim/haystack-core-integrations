@@ -130,7 +130,8 @@ class PgvectorKeywordRetriever:
 
         top_k = top_k or self.top_k
 
-        docs = self.document_store._keyword_retrieval(
+        # TODO: this call does not work if not already connected
+        docs = self.document_store._connected__keyword_retrieval(
             query=query,
             filters=filters,
             top_k=top_k,

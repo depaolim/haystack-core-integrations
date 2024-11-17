@@ -4,9 +4,11 @@ PYTHON_PIP := $(PYTHON_VENV) -m pip
 HATCH := ./venv/bin/hatch
 PGNAME := haystack-integrations-pgvector
 
-# reconnect for each public method call
-#	restituire una funzione che wrappi la funzione originale in un un context/connection/commit
+# shared pointer counter
 # autocommit = False
+# no good:
+#	PgvectorKeywordRetriever.run -> docs = self.document_store._connected__embedding_retrieval
+#	PgvectorEmbeddingRetriever.run -> docs = self.document_store._connected__embedding_retrieval
 # create PR with test case??
 # 	* localize delta and apply again
 # (initialize schema in __init__, if preferred)

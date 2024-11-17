@@ -173,27 +173,53 @@ class PgvectorDocumentStore:
         self.language = language
         self._connection = None
         self._schema_is_initialized = False
+        self._connection_counter = 0
 
     def __getattr__(self, item):
         # search a hidden "connected" method
         private_item = "_connected_" + item
         private_method = getattr(self, private_item)
 
-        def _connected_method(*args, **kwargs):
-            old_connection = self._connection
+        def _already_connected_method(*args, **kwargs):
+            document_store = self
             try:
-                with self._create_connection() as conn:
-                    self._connection = conn
-                    if not self._schema_is_initialized:
-                        self._schema_is_initialized = True
-                        self._init_schema()
-                    result = private_method(*args, **kwargs)
-                    conn.commit()
+                result = private_method(*args, **kwargs)
             finally:
-                self._connection = old_connection
+                assert document_store._connection_counter
+                document_store._connection_counter -= 1
             return result
 
-        return _connected_method
+        def _connection_method(*args, **kwargs):
+            document_store = self
+            old_connection = self._connection
+            if old_connection:
+                print("*** AHIAAA ***")
+            conn = self._create_connection()
+            try:
+                self._connection = conn
+                if not self._schema_is_initialized:
+                    self._schema_is_initialized = True
+                    self._init_schema()
+                result = private_method(*args, **kwargs)
+                conn.commit()
+            except:
+                conn.rollback()
+                self._connection = old_connection
+                raise
+            finally:
+                conn.close()
+                assert document_store._connection_counter
+                document_store._connection_counter -= 1
+                pass
+            return result
+
+        if self._connection_counter:
+            result = _already_connected_method
+        else:
+            result = _connection_method
+
+        self._connection_counter += 1
+        return result
 
     def cursor(self):
         return Cursor(self.connection)
@@ -203,13 +229,6 @@ class PgvectorDocumentStore:
 
     @property
     def connection(self):
-        if self._connection is None:
-            self._connection = self._create_connection()
-
-        if not self._schema_is_initialized:
-            self._schema_is_initialized = True
-            self._init_schema()
-
         return self._connection
 
     def _create_connection(self):
@@ -373,7 +392,7 @@ class PgvectorDocumentStore:
         with self.cursor() as cursor:
             cursor.execute(sql_create_index, "Could not create HNSW index")
 
-    def count_documents(self) -> int:
+    def _connected_count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
         """
@@ -386,7 +405,7 @@ class PgvectorDocumentStore:
             count, = cursor.execute(sql_count, "Could not count documents in PgvectorDocumentStore").fetchone()
         return count
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def _connected_filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """
         Returns the documents that match the filters provided.
 
@@ -541,7 +560,7 @@ class PgvectorDocumentStore:
 
         return haystack_documents
 
-    def delete_documents(self, document_ids: List[str]) -> None:
+    def _connected_delete_documents(self, document_ids: List[str]) -> None:
         """
         Deletes documents that match the provided `document_ids` from the document store.
 
@@ -562,7 +581,7 @@ class PgvectorDocumentStore:
         with self.cursor() as cursor:
             cursor.execute(delete_sql, "Could not delete documents from PgvectorDocumentStore")
 
-    def _keyword_retrieval(
+    def _connected__keyword_retrieval(
         self,
         query: str,
         *,
@@ -607,7 +626,7 @@ class PgvectorDocumentStore:
 
         return self._from_pg_to_haystack_documents(records)
 
-    def _embedding_retrieval(
+    def _connected__embedding_retrieval(
         self,
         query_embedding: List[float],
         *,
